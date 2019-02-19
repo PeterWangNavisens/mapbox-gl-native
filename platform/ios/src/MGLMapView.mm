@@ -1325,8 +1325,9 @@ public:
     {
         self.dormant = YES;
 
+      if(!self.locationManagerBackgroundModeOn){
         [self validateLocationServices];
-
+      }
         [MGLMapboxEvents flush];
 
         _displayLink.paused = YES;
@@ -1373,8 +1374,9 @@ public:
 
         _displayLink.paused = NO;
 
+      if(!self.locationManagerOn){
         [self validateLocationServices];
-
+      }
         [MGLMapboxEvents pushTurnstileEvent];
         [MGLMapboxEvents pushEvent:MMEEventTypeMapLoad withAttributes:@{}];
     }
@@ -5088,11 +5090,14 @@ public:
         [self.locationManager startUpdatingLocation];
 
         [self validateUserHeadingUpdating];
+      
+        self.locationManagerOn = YES;
     }
     else if ( ! shouldEnableLocationServices && self.locationManager)
     {
         [self.locationManager stopUpdatingLocation];
         [self.locationManager stopUpdatingHeading];
+        self.locationManagerOn = NO;
     }
 }
 
@@ -5333,6 +5338,10 @@ public:
 
 - (void)locationManager:(__unused id<MGLLocationManager>)manager didUpdateLocations:(NSArray *)locations animated:(BOOL)animated
 {
+  if([UIApplication sharedApplication].applicationState == UIApplicationStateBackground){
+    return;
+  }
+  
     CLLocation *oldLocation = self.userLocation.location;
     CLLocation *newLocation = locations.lastObject;
     _distanceFromOldUserLocation = [newLocation distanceFromLocation:oldLocation];

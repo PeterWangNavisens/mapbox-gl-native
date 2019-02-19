@@ -376,6 +376,8 @@ MGL_EXPORT IB_DESIGNABLE
  */
 @property (nonatomic, null_resettable) id<MGLLocationManager> locationManager;
 
+@property (nonatomic) BOOL locationManagerBackgroundModeOn;
+@property (nonatomic) BOOL locationManagerOn;
 /**
  A Boolean value indicating whether the map may display the user location.
 
