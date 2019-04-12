@@ -10,9 +10,6 @@
 #include <mbgl/style/layer_impl.hpp>
 #include <mbgl/geometry/feature_index.hpp>
 #include <mbgl/renderer/bucket.hpp>
-#include <mbgl/renderer/buckets/fill_bucket.hpp>
-#include <mbgl/renderer/buckets/fill_extrusion_bucket.hpp>
-#include <mbgl/renderer/buckets/line_bucket.hpp>
 
 #include <atomic>
 #include <memory>
@@ -35,7 +32,7 @@ public:
     GeometryTileWorker(ActorRef<GeometryTileWorker> self,
                        ActorRef<GeometryTile> parent,
                        OverscaledTileID,
-                       const std::string&,
+                       std::string,
                        const std::atomic<bool>&,
                        const MapMode,
                        const float pixelRatio,
@@ -47,7 +44,7 @@ public:
     void setShowCollisionBoxes(bool showCollisionBoxes_, uint64_t correlationID_);
     
     void onGlyphsAvailable(GlyphMap glyphs);
-    void onImagesAvailable(ImageMap icons, ImageMap patterns, uint64_t imageCorrelationID);
+    void onImagesAvailable(ImageMap icons, ImageMap patterns, ImageVersionMap versionMap, uint64_t imageCorrelationID);
 
 private:
     void coalesced();
@@ -99,6 +96,7 @@ private:
     GlyphMap glyphMap;
     ImageMap imageMap;
     ImageMap patternMap;
+    ImageVersionMap versionMap;
     
     bool showCollisionBoxes;
     bool firstLoad = true;

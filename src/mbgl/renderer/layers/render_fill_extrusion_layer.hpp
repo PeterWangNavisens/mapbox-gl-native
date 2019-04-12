@@ -3,8 +3,7 @@
 #include <mbgl/renderer/render_layer.hpp>
 #include <mbgl/style/layers/fill_extrusion_layer_impl.hpp>
 #include <mbgl/style/layers/fill_extrusion_layer_properties.hpp>
-#include <mbgl/util/optional.hpp>
-#include <mbgl/util/offscreen_texture.hpp>
+#include <mbgl/gfx/offscreen_texture.hpp>
 
 namespace mbgl {
 
@@ -26,7 +25,6 @@ public:
     bool hasTransition() const override;
     bool hasCrossfade() const override;
     void render(PaintParameters&, RenderSource*) override;
-    style::FillExtrusionPaintProperties::PossiblyEvaluated paintProperties() const;
 
     bool queryIntersectsFeature(
         const GeometryCoordinates&,
@@ -36,17 +34,13 @@ public:
         const float,
         const mat4&) const override;
 
-    std::unique_ptr<Bucket> createBucket(const BucketParameters&, const std::vector<const RenderLayer*>&) const override;
-    std::unique_ptr<Layout> createLayout(const BucketParameters&, const std::vector<const RenderLayer*>&,
-                                         std::unique_ptr<GeometryTileLayer>, GlyphDependencies&, ImageDependencies&) const override;
-
     // Paint properties
     style::FillExtrusionPaintProperties::Unevaluated unevaluated;
     style::FillExtrusionPaintProperties::PossiblyEvaluated evaluated;
 
     const style::FillExtrusionLayer::Impl& impl() const;
 
-    optional<OffscreenTexture> renderTexture;
+    std::unique_ptr<gfx::OffscreenTexture> renderTexture;
 private:
     CrossfadeParameters crossfade;
 };

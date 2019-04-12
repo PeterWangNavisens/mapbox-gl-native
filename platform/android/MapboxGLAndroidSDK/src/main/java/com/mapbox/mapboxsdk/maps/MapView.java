@@ -26,6 +26,7 @@ import com.mapbox.mapboxsdk.Mapbox;
 import com.mapbox.mapboxsdk.R;
 import com.mapbox.mapboxsdk.annotations.Annotation;
 import com.mapbox.mapboxsdk.constants.MapboxConstants;
+import com.mapbox.mapboxsdk.exceptions.MapboxConfigurationException;
 import com.mapbox.mapboxsdk.location.LocationComponent;
 import com.mapbox.mapboxsdk.maps.renderer.MapRenderer;
 import com.mapbox.mapboxsdk.maps.renderer.glsurfaceview.GLSurfaceViewMapRenderer;
@@ -120,6 +121,10 @@ public class MapView extends FrameLayout implements NativeMapView.ViewCallback {
       return;
     }
 
+    if (!Mapbox.hasInstance()) {
+      throw new MapboxConfigurationException();
+    }
+
     // hide surface until map is fully loaded #10990
     setForeground(new ColorDrawable(options.getForegroundLoadColor()));
 
@@ -129,7 +134,9 @@ public class MapView extends FrameLayout implements NativeMapView.ViewCallback {
     View view = LayoutInflater.from(context).inflate(R.layout.mapbox_mapview_internal, this);
     compassView = view.findViewById(R.id.compassView);
     attrView = view.findViewById(R.id.attributionView);
+    attrView.setImageDrawable(BitmapUtils.getDrawableFromRes(getContext(), R.drawable.mapbox_info_bg_selector));
     logoView = view.findViewById(R.id.logoView);
+    logoView.setImageDrawable(BitmapUtils.getDrawableFromRes(getContext(), R.drawable.mapbox_logo_icon));
 
     // add accessibility support
     setContentDescription(context.getString(R.string.mapbox_mapActionDescription));
@@ -500,7 +507,7 @@ public class MapView extends FrameLayout implements NativeMapView.ViewCallback {
    */
   @UiThread
   public void onLowMemory() {
-    if (nativeMapView != null) {
+    if (nativeMapView != null && !destroyed) {
       nativeMapView.onLowMemory();
     }
   }
@@ -909,7 +916,7 @@ public class MapView extends FrameLayout implements NativeMapView.ViewCallback {
     /**
      * Called when the map has finished rendering.
      *
-     * @param fully true if map is fully rendered, false if fully rendered
+     * @param fully true if map is fully rendered, false if not fully rendered
      */
     void onDidFinishRenderingMap(boolean fully);
   }

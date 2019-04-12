@@ -37,16 +37,13 @@ public:
     void setShowCollisionBoxes(const bool showCollisionBoxes) override;
 
     void onGlyphsAvailable(GlyphMap) override;
-    void onImagesAvailable(ImageMap, ImageMap, uint64_t imageCorrelationID) override;
+    void onImagesAvailable(ImageMap, ImageMap, ImageVersionMap versionMap, uint64_t imageCorrelationID) override;
     
     void getGlyphs(GlyphDependencies);
     void getImages(ImageRequestPair);
 
-    void upload(gl::Context&) override;
+    void upload(gfx::Context&) override;
     Bucket* getBucket(const style::Layer::Impl&) const override;
-
-    Size bindGlyphAtlas(gl::Context&);
-    Size bindIconAtlas(gl::Context&);
 
     void queryRenderedFeatures(
             std::unordered_map<std::string, std::vector<Feature>>& result,
@@ -132,8 +129,8 @@ private:
 
     FadeState fadeState = FadeState::Loaded;
 public:
-    optional<gl::Texture> glyphAtlasTexture;
-    optional<gl::Texture> iconAtlasTexture;
+    optional<gfx::Texture> glyphAtlasTexture;
+    optional<gfx::Texture> iconAtlasTexture;
 };
 
 } // namespace mbgl

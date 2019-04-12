@@ -8,6 +8,7 @@
 
 #import <Foundation/Foundation.h>
 #import "MGLLoggingConfiguration_Private.h"
+#import "MGLNetworkConfiguration_Private.h"
 
 #include <mutex>
 #include <chrono>
@@ -82,13 +83,10 @@ class HTTPFileSource::Impl {
 public:
     Impl() {
         @autoreleasepool {
-            NSURLSessionConfiguration* sessionConfig =
-                [NSURLSessionConfiguration defaultSessionConfiguration];
-            sessionConfig.timeoutIntervalForResource = 30;
-            sessionConfig.HTTPMaximumConnectionsPerHost = 8;
-            sessionConfig.requestCachePolicy = NSURLRequestReloadIgnoringLocalCacheData;
-            sessionConfig.URLCache = nil;
 
+            NSURLSessionConfiguration *sessionConfig =
+            [MGLNetworkConfiguration sharedManager].sessionConfiguration;
+            
             session = [NSURLSession sessionWithConfiguration:sessionConfig];
 
             userAgent = getUserAgent();
@@ -217,14 +215,19 @@ std::unique_ptr<AsyncRequest> HTTPFileSource::request(const Resource& resource, 
         }
 
         [req addValue:impl->userAgent forHTTPHeaderField:@"User-Agent"];
-
+        
+        if (resource.kind == mbgl::Resource::Kind::Tile) {
+            [[MGLNetworkConfiguration sharedManager] startDownloadEvent:url.relativePath type:@"tile"];
+        }
+        
         request->task = [impl->session
             dataTaskWithRequest:req
               completionHandler:^(NSData* data, NSURLResponse* res, NSError* error) {
                 if (error && [error code] == NSURLErrorCancelled) {
+                    [[MGLNetworkConfiguration sharedManager] cancelDownloadEvent:res.URL.relativePath];
                     return;
                 }
-
+                [[MGLNetworkConfiguration sharedManager] stopDownloadEvent:res.URL.relativePath];
                 Response response;
                 using Error = Response::Error;
 

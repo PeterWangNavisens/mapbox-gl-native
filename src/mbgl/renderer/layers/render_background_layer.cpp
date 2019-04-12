@@ -8,6 +8,7 @@
 #include <mbgl/programs/background_program.hpp>
 #include <mbgl/util/tile_cover.hpp>
 #include <mbgl/map/transform_state.hpp>
+#include <mbgl/gfx/cull_face_mode.hpp>
 
 namespace mbgl {
 
@@ -20,12 +21,6 @@ RenderBackgroundLayer::RenderBackgroundLayer(Immutable<style::BackgroundLayer::I
 
 const style::BackgroundLayer::Impl& RenderBackgroundLayer::impl() const {
     return static_cast<const style::BackgroundLayer::Impl&>(*baseImpl);
-}
-
-std::unique_ptr<Bucket> RenderBackgroundLayer::createBucket(const BucketParameters &,
-                                                            const std::vector<const RenderLayer *> &) const {
-    assert(false);
-    return nullptr;
 }
 
 void RenderBackgroundLayer::transition(const TransitionParameters &parameters) {
@@ -53,9 +48,9 @@ void RenderBackgroundLayer::render(PaintParameters& parameters, RenderSource*) {
     // glClear rather than this method.
 
     const Properties<>::PossiblyEvaluated properties;
-    const BackgroundProgram::PaintPropertyBinders paintAttributeData(properties, 0);
+    const BackgroundProgram::Binders paintAttributeData(properties, 0);
 
-    auto draw = [&](auto& program, auto&& uniformValues) {
+    auto draw = [&](auto& program, auto&& uniformValues, const auto& textureBindings) {
         const auto allUniformValues = program.computeAllUniformValues(
             std::move(uniformValues),
             paintAttributeData,
@@ -72,15 +67,17 @@ void RenderBackgroundLayer::render(PaintParameters& parameters, RenderSource*) {
 
         program.draw(
             parameters.context,
-            gl::Triangles(),
-            parameters.depthModeForSublayer(0, gl::DepthMode::ReadOnly),
-            gl::StencilMode::disabled(),
+            *parameters.renderPass,
+            gfx::Triangles(),
+            parameters.depthModeForSublayer(0, gfx::DepthMaskType::ReadOnly),
+            gfx::StencilMode::disabled(),
             parameters.colorModeForRenderPass(),
-            gl::CullFaceMode::disabled(),
+            gfx::CullFaceMode::disabled(),
             parameters.staticData.quadTriangleIndexBuffer,
             parameters.staticData.tileTriangleSegments,
             allUniformValues,
             allAttributeBindings,
+            textureBindings,
             getID()
         );
     };
@@ -92,12 +89,10 @@ void RenderBackgroundLayer::render(PaintParameters& parameters, RenderSource*) {
         if (!imagePosA || !imagePosB)
             return;
 
-        parameters.imageManager.bind(parameters.context, 0);
-
         for (const auto& tileID : util::tileCover(parameters.state, parameters.state.getIntegerZoom())) {
             draw(
                 parameters.programs.getBackgroundLayerPrograms().backgroundPattern,
-                BackgroundPatternUniforms::values(
+                BackgroundPatternProgram::layoutUniformValues(
                     parameters.matrixForTile(tileID),
                     evaluated.get<BackgroundOpacity>(),
                     parameters.imageManager.getPixelSize(),
@@ -106,18 +101,22 @@ void RenderBackgroundLayer::render(PaintParameters& parameters, RenderSource*) {
                     crossfade,
                     tileID,
                     parameters.state
-                )
+                ),
+                BackgroundPatternProgram::TextureBindings{
+                    textures::image::Value{ parameters.imageManager.textureBinding(parameters.context) },
+                }
             );
         }
     } else {
         for (const auto& tileID : util::tileCover(parameters.state, parameters.state.getIntegerZoom())) {
             draw(
                 parameters.programs.getBackgroundLayerPrograms().background,
-                BackgroundProgram::UniformValues {
-                    uniforms::u_matrix::Value( parameters.matrixForTile(tileID) ),
-                    uniforms::u_color::Value( evaluated.get<BackgroundColor>() ),
-                    uniforms::u_opacity::Value( evaluated.get<BackgroundOpacity>() ),
-                }
+                BackgroundProgram::LayoutUniformValues {
+                    uniforms::matrix::Value( parameters.matrixForTile(tileID) ),
+                    uniforms::color::Value( evaluated.get<BackgroundColor>() ),
+                    uniforms::opacity::Value( evaluated.get<BackgroundOpacity>() ),
+                },
+                BackgroundProgram::TextureBindings{}
             );
         }
     }

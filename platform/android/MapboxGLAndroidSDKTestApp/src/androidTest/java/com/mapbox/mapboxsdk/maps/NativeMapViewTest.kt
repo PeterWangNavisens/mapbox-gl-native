@@ -10,8 +10,10 @@ import com.mapbox.mapboxsdk.geometry.LatLng
 import com.mapbox.mapboxsdk.geometry.LatLngBounds
 import com.mapbox.mapboxsdk.geometry.ProjectedMeters
 import com.mapbox.mapboxsdk.maps.renderer.MapRenderer
+import com.mapbox.mapboxsdk.style.layers.TransitionOptions
 import com.mapbox.mapboxsdk.testapp.utils.TestConstants
-import junit.framework.Assert.assertEquals
+import junit.framework.Assert.*
+import org.junit.After
 import org.junit.Before
 import org.junit.Test
 import org.junit.runner.RunWith
@@ -38,6 +40,30 @@ class NativeMapViewTest {
         val context = InstrumentationRegistry.getContext()
         nativeMapView = NativeMapView(context, 2.0f, false, null, null, DummyRenderer(context))
         nativeMapView.resizeView(WIDTH, HEIGHT)
+    }
+
+    @After
+    @UiThreadTest
+    fun after() {
+        nativeMapView.destroy()
+    }
+
+    @Test
+    @UiThreadTest
+    fun testSetStyleUrl() {
+        val expected = Style.DARK
+        nativeMapView.styleUrl = expected
+        val actual = nativeMapView.styleUrl
+        assertEquals("Style URL should match", expected, actual)
+    }
+
+    @Test
+    @UiThreadTest
+    fun testSetStyleJson() {
+        val expected = "{}"
+        nativeMapView.styleJson = expected
+        val actual = nativeMapView.styleJson
+        assertEquals("Style JSON should match", expected, actual)
     }
 
     @Test
@@ -317,6 +343,24 @@ class NativeMapViewTest {
         assertEquals("Longitude should match", expected.target.longitude, actual.target.longitude, TestConstants.LAT_LNG_DELTA)
         assertEquals("Tilt should match", expected.tilt, actual.tilt, TestConstants.TILT_DELTA)
         assertEquals("Zoom should match", expected.zoom, actual.zoom, TestConstants.ZOOM_DELTA)
+    }
+
+    @Test
+    @UiThreadTest
+    fun testTransitionOptions() {
+        val transitionOptions = TransitionOptions(500, 500)
+        nativeMapView.transitionOptions = transitionOptions
+        assertTrue(transitionOptions.isEnablePlacementTransitions)
+        assertEquals(transitionOptions, nativeMapView.transitionOptions)
+    }
+
+    @Test
+    @UiThreadTest
+    fun testTransitionOptions_disablePlacementTransitions() {
+        val transitionOptions = TransitionOptions(500, 500, false)
+        nativeMapView.transitionOptions = transitionOptions
+        assertFalse(transitionOptions.isEnablePlacementTransitions)
+        assertEquals(transitionOptions, nativeMapView.transitionOptions)
     }
 
     class DummyRenderer(context: Context) : MapRenderer(context, null) {

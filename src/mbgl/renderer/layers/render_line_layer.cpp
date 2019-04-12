@@ -8,6 +8,7 @@
 #include <mbgl/geometry/line_atlas.hpp>
 #include <mbgl/tile/tile.hpp>
 #include <mbgl/style/layers/line_layer_impl.hpp>
+#include <mbgl/gfx/cull_face_mode.hpp>
 #include <mbgl/geometry/feature_index.hpp>
 #include <mbgl/util/math.hpp>
 #include <mbgl/util/intersection_tests.hpp>
@@ -27,33 +28,12 @@ const style::LineLayer::Impl& RenderLineLayer::impl() const {
     return static_cast<const style::LineLayer::Impl&>(*baseImpl);
 }
 
-std::unique_ptr<Bucket> RenderLineLayer::createBucket(const BucketParameters&, const std::vector<const RenderLayer*>&) const {
-    // Should be calling createLayout() instead.
-    assert(baseImpl->getTypeInfo()->layout == LayerTypeInfo::Layout::NotRequired);
-    return nullptr;
-}
-
-std::unique_ptr<Layout> RenderLineLayer::createLayout(const BucketParameters& parameters,
-                                                      const std::vector<const RenderLayer*>& group,
-                                                      std::unique_ptr<GeometryTileLayer> layer,
-                                                      GlyphDependencies&,
-                                                      ImageDependencies& imageDependencies) const {
-    return std::make_unique<PatternLayout<LineBucket>>(parameters, group, std::move(layer), imageDependencies);
-}
-
 void RenderLineLayer::transition(const TransitionParameters& parameters) {
     unevaluated = impl().paint.transitioned(parameters, std::move(unevaluated));
 }
 
 void RenderLineLayer::evaluate(const PropertyEvaluationParameters& parameters) {
-    style::Properties<LineFloorwidth>::Unevaluated extra(unevaluated.get<style::LineWidth>());
-
-    auto dashArrayParams = parameters;
-    dashArrayParams.useIntegerZoom = true;
-
-    evaluated = RenderLinePaintProperties::PossiblyEvaluated(
-    unevaluated.evaluate(parameters).concat(extra.evaluate(dashArrayParams)));
-
+    evaluated = unevaluated.evaluate(parameters);
     crossfade = parameters.getCrossfadeParameters();
 
     passes = (evaluated.get<style::LineOpacity>().constantOr(1.0) > 0
@@ -82,9 +62,10 @@ void RenderLineLayer::render(PaintParameters& parameters, RenderSource*) {
         }
         LineBucket& bucket = *bucket_;
 
-        auto draw = [&] (auto& program, auto&& uniformValues, const optional<ImagePosition>& patternPositionA, const optional<ImagePosition>& patternPositionB) {
-            auto& programInstance = program.get(evaluated);
-
+        auto draw = [&](auto& programInstance,
+                        auto&& uniformValues,
+                        const optional<ImagePosition>& patternPositionA,
+                        const optional<ImagePosition>& patternPositionB, auto&& textureBindings) {
             const auto& paintPropertyBinders = bucket.paintPropertyBinders.at(getID());
 
             paintPropertyBinders.setPatternParameters(patternPositionA, patternPositionB, crossfade);
@@ -105,15 +86,17 @@ void RenderLineLayer::render(PaintParameters& parameters, RenderSource*) {
 
             programInstance.draw(
                 parameters.context,
-                gl::Triangles(),
-                parameters.depthModeForSublayer(0, gl::DepthMode::ReadOnly),
+                *parameters.renderPass,
+                gfx::Triangles(),
+                parameters.depthModeForSublayer(0, gfx::DepthMaskType::ReadOnly),
                 parameters.stencilModeForClipping(tile.clip),
                 parameters.colorModeForRenderPass(),
-                gl::CullFaceMode::disabled(),
+                gfx::CullFaceMode::disabled(),
                 *bucket.indexBuffer,
                 bucket.segments,
                 allUniformValues,
                 allAttributeBindings,
+                std::move(textureBindings),
                 getID()
             );
         };
@@ -124,10 +107,8 @@ void RenderLineLayer::render(PaintParameters& parameters, RenderSource*) {
             LinePatternPos posA = parameters.lineAtlas.getDashPosition(evaluated.get<LineDasharray>().from, cap);
             LinePatternPos posB = parameters.lineAtlas.getDashPosition(evaluated.get<LineDasharray>().to, cap);
 
-            parameters.lineAtlas.bind(parameters.context, 0);
-
             draw(parameters.programs.getLineLayerPrograms().lineSDF,
-                 LineSDFProgram::uniformValues(
+                 LineSDFProgram::layoutUniformValues(
                      evaluated,
                      parameters.pixelRatio,
                      tile,
@@ -136,20 +117,23 @@ void RenderLineLayer::render(PaintParameters& parameters, RenderSource*) {
                      posA,
                      posB,
                      crossfade,
-                     parameters.lineAtlas.getSize().width), {}, {});
+                     parameters.lineAtlas.getSize().width),
+                     {},
+                     {},
+                     LineSDFProgram::TextureBindings{
+                         parameters.lineAtlas.textureBinding(parameters.context),
+                     });
 
         } else if (!unevaluated.get<LinePattern>().isUndefined()) {
             const auto linePatternValue =  evaluated.get<LinePattern>().constantOr(Faded<std::basic_string<char>>{ "", ""});
-            assert(dynamic_cast<GeometryTile*>(&tile.tile));
-            GeometryTile& geometryTile = static_cast<GeometryTile&>(tile.tile);
-            parameters.context.bindTexture(*geometryTile.iconAtlasTexture, 0, gl::TextureFilter::Linear);
+            auto& geometryTile = static_cast<GeometryTile&>(tile.tile);            
             const Size texsize = geometryTile.iconAtlasTexture->size;
 
             optional<ImagePosition> posA = geometryTile.getPattern(linePatternValue.from);
             optional<ImagePosition> posB = geometryTile.getPattern(linePatternValue.to);
 
             draw(parameters.programs.getLineLayerPrograms().linePattern,
-                 LinePatternProgram::uniformValues(
+                 LinePatternProgram::layoutUniformValues(
                      evaluated,
                      tile,
                      parameters.state,
@@ -157,27 +141,37 @@ void RenderLineLayer::render(PaintParameters& parameters, RenderSource*) {
                      texsize,
                      crossfade,
                      parameters.pixelRatio),
-                     *posA,
-                     *posB);
+                     posA,
+                     posB,
+                     LinePatternProgram::TextureBindings{
+                         textures::image::Value{ geometryTile.iconAtlasTexture->getResource(), gfx::TextureFilterType::Linear },
+                     });
         } else if (!unevaluated.get<LineGradient>().getValue().isUndefined()) {
             if (!colorRampTexture) {
                 colorRampTexture = parameters.context.createTexture(colorRamp);
             }
-            parameters.context.bindTexture(*colorRampTexture, 0, gl::TextureFilter::Linear);
 
             draw(parameters.programs.getLineLayerPrograms().lineGradient,
-                 LineGradientProgram::uniformValues(
+                 LineGradientProgram::layoutUniformValues(
                     evaluated,
                     tile,
                     parameters.state,
-                    parameters.pixelsToGLUnits), {}, {});
+                    parameters.pixelsToGLUnits),
+                    {},
+                    {},
+                    LineGradientProgram::TextureBindings{
+                        textures::image::Value{ colorRampTexture->getResource(), gfx::TextureFilterType::Linear },
+                    });
         } else {
             draw(parameters.programs.getLineLayerPrograms().line,
-                 LineProgram::uniformValues(
+                 LineProgram::layoutUniformValues(
                      evaluated,
                      tile,
                      parameters.state,
-                     parameters.pixelsToGLUnits), {}, {});
+                     parameters.pixelsToGLUnits),
+                 {},
+                 {},
+                 LineProgram::TextureBindings{});
         }
     }
 }
@@ -225,7 +219,7 @@ bool RenderLineLayer::queryIntersectsFeature(
             queryGeometry,
             evaluated.get<style::LineTranslate>(),
             evaluated.get<style::LineTranslateAnchor>(),
-            transformState.getAngle(),
+            transformState.getBearing(),
             pixelsToTileUnits);
 
     // Evaluate function
@@ -264,24 +258,6 @@ void RenderLineLayer::updateColorRamp() {
     }
 }
 
-RenderLinePaintProperties::PossiblyEvaluated RenderLineLayer::paintProperties() const {
-    return RenderLinePaintProperties::PossiblyEvaluated {
-        evaluated.get<style::LineOpacity>(),
-        evaluated.get<style::LineColor>(),
-        evaluated.get<style::LineTranslate>(),
-        evaluated.get<style::LineTranslateAnchor>(),
-        evaluated.get<style::LineWidth>(),
-        evaluated.get<style::LineGapWidth>(),
-        evaluated.get<style::LineOffset>(),
-        evaluated.get<style::LineBlur>(),
-        evaluated.get<style::LineDasharray>(),
-        evaluated.get<style::LinePattern>(),
-        evaluated.get<style::LineGradient>(),
-        evaluated.get<LineFloorwidth>()
-
-    };
-}
-
 float RenderLineLayer::getLineWidth(const GeometryTileFeature& feature, const float zoom) const {
     float lineWidth = evaluated.get<style::LineWidth>()
             .evaluate(feature, zoom, style::LineWidth::defaultValue());
@@ -293,7 +269,6 @@ float RenderLineLayer::getLineWidth(const GeometryTileFeature& feature, const fl
         return lineWidth;
     }
 }
-
 
 void RenderLineLayer::update() {
     updateColorRamp();

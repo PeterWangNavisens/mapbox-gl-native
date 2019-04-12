@@ -3,8 +3,9 @@ package com.mapbox.mapboxsdk.maps.renderer;
 import android.content.Context;
 import android.support.annotation.CallSuper;
 import android.support.annotation.Keep;
-
 import android.support.annotation.NonNull;
+
+import com.mapbox.mapboxsdk.LibraryLoader;
 import com.mapbox.mapboxsdk.log.Logger;
 import com.mapbox.mapboxsdk.maps.MapboxMap;
 import com.mapbox.mapboxsdk.storage.FileSource;
@@ -22,6 +23,10 @@ import javax.microedition.khronos.opengles.GL10;
 @Keep
 public abstract class MapRenderer implements MapRendererScheduler {
 
+  static {
+    LibraryLoader.load();
+  }
+
   private static final String TAG = "Mbgl-MapRenderer";
 
   // Holds the pointer to the native peer after initialisation
@@ -31,12 +36,11 @@ public abstract class MapRenderer implements MapRendererScheduler {
   private MapboxMap.OnFpsChangedListener onFpsChangedListener;
 
   public MapRenderer(@NonNull Context context, String localIdeographFontFamily) {
-    FileSource fileSource = FileSource.getInstance(context);
     float pixelRatio = context.getResources().getDisplayMetrics().density;
     String programCacheDir = FileSource.getInternalCachePath(context);
 
     // Initialise native peer
-    nativeInitialize(this, fileSource, pixelRatio, programCacheDir, localIdeographFontFamily);
+    nativeInitialize(this, pixelRatio, programCacheDir, localIdeographFontFamily);
   }
 
   public void onStart() {
@@ -75,6 +79,11 @@ public abstract class MapRenderer implements MapRendererScheduler {
   }
 
   @CallSuper
+  protected void onSurfaceDestroyed() {
+    nativeOnSurfaceDestroyed();
+  }
+
+  @CallSuper
   protected void onDrawFrame(GL10 gl) {
     long startTime = System.nanoTime();
     try {
@@ -110,7 +119,6 @@ public abstract class MapRenderer implements MapRendererScheduler {
   }
 
   private native void nativeInitialize(MapRenderer self,
-                                       FileSource fileSource,
                                        float pixelRatio,
                                        String programCacheDir,
                                        String localIdeographFontFamily);
@@ -122,6 +130,8 @@ public abstract class MapRenderer implements MapRendererScheduler {
   private native void nativeOnSurfaceCreated();
 
   private native void nativeOnSurfaceChanged(int width, int height);
+
+  private native void nativeOnSurfaceDestroyed();
 
   private native void nativeRender();
 

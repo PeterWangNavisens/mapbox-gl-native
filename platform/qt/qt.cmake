@@ -38,6 +38,7 @@ set(MBGL_QT_CORE_FILES
     PRIVATE platform/qt/src/timer.cpp
     PRIVATE platform/qt/src/timer_impl.hpp
     PRIVATE platform/qt/src/utf.cpp
+    PRIVATE platform/qt/src/gl_functions.cpp
 
     PRIVATE platform/default/src/mbgl/text/collator.cpp
     PRIVATE platform/default/src/mbgl/text/unaccent.cpp
@@ -49,6 +50,7 @@ set(MBGL_QT_CORE_FILES
 
 set(MBGL_QT_FILESOURCE_FILES
     # File source
+    PRIVATE platform/default/src/mbgl/storage/file_source.cpp
     PRIVATE platform/qt/src/http_file_source.cpp
     PRIVATE platform/qt/src/http_file_source.hpp
     PRIVATE platform/qt/src/http_request.cpp
@@ -156,7 +158,6 @@ elseif (CMAKE_HOST_SYSTEM_NAME STREQUAL "Windows")
     add_definitions("-DQT_COMPILING_QIMAGE_COMPAT_CPP")
     add_definitions("-DRAPIDJSON_HAS_CXX11_RVALUE_REFS")
     add_definitions("-D_USE_MATH_DEFINES")
-    add_definitions("-D_WINDOWS")
 
     add_definitions("-Wno-deprecated-declarations")
     add_definitions("-Wno-macro-redefined")

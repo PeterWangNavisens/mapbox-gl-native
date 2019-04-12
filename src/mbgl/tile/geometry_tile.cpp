@@ -13,7 +13,6 @@
 #include <mbgl/renderer/query.hpp>
 #include <mbgl/text/glyph_atlas.hpp>
 #include <mbgl/renderer/image_atlas.hpp>
-#include <mbgl/storage/file_source.hpp>
 #include <mbgl/geometry/feature_index.hpp>
 #include <mbgl/map/transform_state.hpp>
 #include <mbgl/util/logging.hpp>
@@ -94,14 +93,15 @@ void GeometryTile::setLayers(const std::vector<Immutable<Layer::Impl>>& layers) 
     pending = true;
 
     std::vector<Immutable<Layer::Impl>> impls;
+    impls.reserve(layers.size());
 
     for (const auto& layer : layers) {
         // Skip irrelevant layers.
-        if (layer->getTypeInfo()->source == LayerTypeInfo::Source::NotRequired ||
-            layer->source != sourceID ||
-            id.overscaledZ < std::floor(layer->minZoom) ||
-            id.overscaledZ >= std::ceil(layer->maxZoom) ||
-            layer->visibility == VisibilityType::None) {
+        assert(layer->getTypeInfo()->source != LayerTypeInfo::Source::NotRequired);
+        assert(layer->source == sourceID);
+        assert(layer->visibility != VisibilityType::None);
+        if (id.overscaledZ < std::floor(layer->minZoom) ||
+            id.overscaledZ >= std::ceil(layer->maxZoom)) {
             continue;
         }
 
@@ -157,8 +157,8 @@ void GeometryTile::getGlyphs(GlyphDependencies glyphDependencies) {
     glyphManager.getGlyphs(*this, std::move(glyphDependencies));
 }
 
-void GeometryTile::onImagesAvailable(ImageMap images, ImageMap patterns, uint64_t imageCorrelationID) {
-    worker.self().invoke(&GeometryTileWorker::onImagesAvailable, std::move(images), std::move(patterns), imageCorrelationID);
+void GeometryTile::onImagesAvailable(ImageMap images, ImageMap patterns, ImageVersionMap versionMap, uint64_t imageCorrelationID) {
+    worker.self().invoke(&GeometryTileWorker::onImagesAvailable, std::move(images), std::move(patterns), std::move(versionMap), imageCorrelationID);
 }
 
 void GeometryTile::getImages(ImageRequestPair pair) {
@@ -173,7 +173,7 @@ const optional<ImagePosition> GeometryTile::getPattern(const std::string& patter
     return {};
 }
 
-void GeometryTile::upload(gl::Context& context) {
+void GeometryTile::upload(gfx::Context& context) {
     auto uploadFn = [&] (Bucket& bucket) {
         if (bucket.needsUpload()) {
             bucket.upload(context);
@@ -185,13 +185,17 @@ void GeometryTile::upload(gl::Context& context) {
     }
 
     if (glyphAtlasImage) {
-        glyphAtlasTexture = context.createTexture(*glyphAtlasImage, 0);
+        glyphAtlasTexture = context.createTexture(*glyphAtlasImage);
         glyphAtlasImage = {};
     }
 
     if (iconAtlas.image.valid()) {
-        iconAtlasTexture = context.createTexture(iconAtlas.image, 0);
+        iconAtlasTexture = context.createTexture(iconAtlas.image);
         iconAtlas.image = {};
+    }
+
+    if (iconAtlasTexture) {
+        iconAtlas.patchUpdatedImages(context, *iconAtlasTexture, imageManager);
     }
 }
 

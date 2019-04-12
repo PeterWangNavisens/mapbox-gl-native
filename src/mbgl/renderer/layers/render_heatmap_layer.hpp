@@ -3,8 +3,9 @@
 #include <mbgl/renderer/render_layer.hpp>
 #include <mbgl/style/layers/heatmap_layer_impl.hpp>
 #include <mbgl/style/layers/heatmap_layer_properties.hpp>
+#include <mbgl/gfx/texture.hpp>
+#include <mbgl/gfx/offscreen_texture.hpp>
 #include <mbgl/util/optional.hpp>
-#include <mbgl/util/offscreen_texture.hpp>
 
 namespace mbgl {
 
@@ -28,8 +29,6 @@ public:
             const float,
             const mat4&) const override;
 
-    std::unique_ptr<Bucket> createBucket(const BucketParameters&, const std::vector<const RenderLayer*>&) const override;
-
     // Paint properties
     style::HeatmapPaintProperties::Unevaluated unevaluated;
     style::HeatmapPaintProperties::PossiblyEvaluated evaluated;
@@ -37,8 +36,8 @@ public:
     const style::HeatmapLayer::Impl& impl() const;
 
     PremultipliedImage colorRamp;
-    optional<OffscreenTexture> renderTexture;
-    optional<gl::Texture> colorRampTexture;
+    std::unique_ptr<gfx::OffscreenTexture> renderTexture;
+    optional<gfx::Texture> colorRampTexture;
 
 private:
     void updateColorRamp();

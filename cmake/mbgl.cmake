@@ -66,8 +66,11 @@ if(WITH_NODEJS)
 
     # Run submodule update
     set(MBGL_SUBMODULES mapbox-gl-js)
-    if (MBGL_PLATFORM STREQUAL "ios")
+    if(MBGL_PLATFORM STREQUAL "ios")
         list(APPEND MBGL_SUBMODULES platform/ios/vendor/mapbox-events-ios)
+    endif()
+    if(MBGL_PLATFORM STREQUAL "ios" OR MBGL_PLATFORM STREQUAL "macos")
+        list(APPEND MBGL_SUBMODULES platform/darwin/docs/theme)
     endif()
 
     message(STATUS "Updating submodules...")
@@ -215,6 +218,10 @@ function(initialize_xcode_cxx_build_settings target)
 
     # Make all build configurations debuggable — except Release.
     set_xcode_property(${target} GCC_GENERATE_DEBUGGING_SYMBOLS $<$<NOT:$<CONFIG:Release>>:YES>)
+
+    if (DEFINED ENV{CI})
+        set_xcode_property(${target} COMPILER_INDEX_STORE_ENABLE NO)
+    endif()
 endfunction()
 
 # CMake 3.1 does not have this yet.

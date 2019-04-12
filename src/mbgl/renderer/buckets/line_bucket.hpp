@@ -1,8 +1,8 @@
 #pragma once
 #include <mbgl/renderer/bucket.hpp>
 #include <mbgl/tile/geometry_tile_data.hpp>
-#include <mbgl/gl/vertex_buffer.hpp>
-#include <mbgl/gl/index_buffer.hpp>
+#include <mbgl/gfx/vertex_buffer.hpp>
+#include <mbgl/gfx/index_buffer.hpp>
 #include <mbgl/programs/segment.hpp>
 #include <mbgl/programs/line_program.hpp>
 #include <mbgl/style/layers/line_layer_properties.hpp>
@@ -20,7 +20,7 @@ public:
 
     // These aliases are used by the PatternLayout template
     using RenderLayerType = RenderLineLayer;
-    using PossiblyEvaluatedPaintProperties = RenderLinePaintProperties::PossiblyEvaluated;
+    using PossiblyEvaluatedPaintProperties = style::LinePaintProperties::PossiblyEvaluated;
     using PossiblyEvaluatedLayoutProperties = style::LineLayoutProperties::PossiblyEvaluated;
 
     LineBucket(const PossiblyEvaluatedLayoutProperties layout,
@@ -36,21 +36,21 @@ public:
 
     bool hasData() const override;
 
-    void upload(gl::Context&) override;
+    void upload(gfx::Context&) override;
 
     float getQueryRadius(const RenderLayer&) const override;
     bool supportsLayer(const style::Layer::Impl&) const override;
 
     PossiblyEvaluatedLayoutProperties layout;
 
-    gl::VertexVector<LineLayoutVertex> vertices;
-    gl::IndexVector<gl::Triangles> triangles;
+    gfx::VertexVector<LineLayoutVertex> vertices;
+    gfx::IndexVector<gfx::Triangles> triangles;
     SegmentVector<LineAttributes> segments;
 
-    optional<gl::VertexBuffer<LineLayoutVertex>> vertexBuffer;
-    optional<gl::IndexBuffer<gl::Triangles>> indexBuffer;
+    optional<gfx::VertexBuffer<LineLayoutVertex>> vertexBuffer;
+    optional<gfx::IndexBuffer> indexBuffer;
 
-    std::map<std::string, LineProgram::PaintPropertyBinders> paintPropertyBinders;
+    std::map<std::string, LineProgram::Binders> paintPropertyBinders;
 
 private:
     void addGeometry(const GeometryCoordinates&, const GeometryTileFeature&);

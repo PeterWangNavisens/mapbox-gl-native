@@ -2,8 +2,8 @@ package com.mapbox.mapboxsdk.maps.renderer.glsurfaceview;
 
 import android.content.Context;
 import android.opengl.GLSurfaceView;
-
 import android.support.annotation.NonNull;
+import android.view.SurfaceHolder;
 import com.mapbox.mapboxsdk.maps.renderer.MapRenderer;
 import com.mapbox.mapboxsdk.maps.renderer.egl.EGLConfigChooser;
 
@@ -33,6 +33,14 @@ public class GLSurfaceViewMapRenderer extends MapRenderer implements GLSurfaceVi
     glSurfaceView.setRenderer(this);
     glSurfaceView.setRenderMode(RENDERMODE_WHEN_DIRTY);
     glSurfaceView.setPreserveEGLContextOnPause(true);
+
+    glSurfaceView.getHolder().addCallback(new SurfaceHolderCallbackAdapter() {
+
+      @Override
+      public void surfaceDestroyed(SurfaceHolder holder) {
+        onSurfaceDestroyed();
+      }
+    });
   }
 
   @Override
@@ -41,8 +49,23 @@ public class GLSurfaceViewMapRenderer extends MapRenderer implements GLSurfaceVi
   }
 
   @Override
+  public void onPause() {
+    super.onPause();
+  }
+
+  @Override
+  public void onDestroy() {
+    super.onDestroy();
+  }
+
+  @Override
   public void onStart() {
     glSurfaceView.onResume();
+  }
+
+  @Override
+  public void onResume() {
+    super.onResume();
   }
 
   @Override

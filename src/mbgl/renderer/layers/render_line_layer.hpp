@@ -6,18 +6,9 @@
 #include <mbgl/programs/uniforms.hpp>
 #include <mbgl/style/image_impl.hpp>
 #include <mbgl/layout/pattern_layout.hpp>
+#include <mbgl/gfx/texture.hpp>
 
 namespace mbgl {
-
-struct LineFloorwidth : style::DataDrivenPaintProperty<float, attributes::a_floorwidth, uniforms::u_floorwidth> {
-    static float defaultValue() { return 1; }
-};
-
-class RenderLinePaintProperties : public style::ConcatenateProperties<
-    style::LinePaintProperties,
-    style::Properties<LineFloorwidth>> {};
-
-class LineBucket;
 
 class RenderLineLayer: public RenderLayer {
 public:
@@ -34,8 +25,6 @@ public:
     void render(PaintParameters&, RenderSource*) override;
     void update() final;
 
-    RenderLinePaintProperties::PossiblyEvaluated paintProperties() const;
-
     bool queryIntersectsFeature(
             const GeometryCoordinates&,
             const GeometryTileFeature&,
@@ -44,17 +33,9 @@ public:
             const float,
             const mat4&) const override;
 
-
-    std::unique_ptr<Bucket> createBucket(const BucketParameters&, const std::vector<const RenderLayer*>&) const override;
-    std::unique_ptr<Layout> createLayout(const BucketParameters&,
-                                               const std::vector<const RenderLayer*>&,
-                                               std::unique_ptr<GeometryTileLayer>,
-                                               GlyphDependencies&,
-                                               ImageDependencies&) const override;
-
     // Paint properties
     style::LinePaintProperties::Unevaluated unevaluated;
-    RenderLinePaintProperties::PossiblyEvaluated evaluated;
+    style::LinePaintProperties::PossiblyEvaluated evaluated;
 
     const style::LineLayer::Impl& impl() const;
 
@@ -63,7 +44,7 @@ private:
     void updateColorRamp();
     CrossfadeParameters crossfade;
     PremultipliedImage colorRamp;
-    optional<gl::Texture> colorRampTexture;
+    optional<gfx::Texture> colorRampTexture;
 };
 
 inline const RenderLineLayer* toRenderLineLayer(const RenderLayer* layer) {

@@ -4,7 +4,6 @@
 #include <mbgl/renderer/paint_parameters.hpp>
 #include <mbgl/renderer/image_manager.hpp>
 #include <mbgl/renderer/render_static_data.hpp>
-#include <mbgl/renderer/renderer_backend.hpp>
 #include <mbgl/programs/programs.hpp>
 #include <mbgl/programs/fill_extrusion_program.hpp>
 #include <mbgl/tile/tile.hpp>
@@ -13,6 +12,9 @@
 #include <mbgl/util/math.hpp>
 #include <mbgl/util/intersection_tests.hpp>
 #include <mbgl/tile/geometry_tile.hpp>
+#include <mbgl/gfx/renderer_backend.hpp>
+#include <mbgl/gfx/render_pass.hpp>
+#include <mbgl/gfx/cull_face_mode.hpp>
 
 namespace mbgl {
 
@@ -25,20 +27,6 @@ RenderFillExtrusionLayer::RenderFillExtrusionLayer(Immutable<style::FillExtrusio
 
 const style::FillExtrusionLayer::Impl& RenderFillExtrusionLayer::impl() const {
     return static_cast<const style::FillExtrusionLayer::Impl&>(*baseImpl);
-}
-
-std::unique_ptr<Bucket> RenderFillExtrusionLayer::createBucket(const BucketParameters&, const std::vector<const RenderLayer*>&) const {
-    // Should be calling createLayout() instead.
-    assert(baseImpl->getTypeInfo()->layout == LayerTypeInfo::Layout::NotRequired);
-    return nullptr;
-}
-
-std::unique_ptr<Layout> RenderFillExtrusionLayer::createLayout(const BucketParameters& parameters,
-                        const std::vector<const RenderLayer*>& group,
-                        std::unique_ptr<GeometryTileLayer> layer,
-                        GlyphDependencies&,
-                        ImageDependencies& imageDependencies) const {
-    return std::make_unique<PatternLayout<FillExtrusionBucket>>(parameters, group, std::move(layer), imageDependencies);
 }
 
 void RenderFillExtrusionLayer::transition(const TransitionParameters& parameters) {
@@ -71,21 +59,22 @@ void RenderFillExtrusionLayer::render(PaintParameters& parameters, RenderSource*
         const auto& size = parameters.staticData.backendSize;
 
         if (!renderTexture || renderTexture->getSize() != size) {
-            renderTexture = OffscreenTexture(parameters.context, size, *parameters.staticData.depthRenderbuffer);
+            renderTexture.reset();
+            renderTexture = parameters.context.createOffscreenTexture(size, *parameters.staticData.depthRenderbuffer);
         }
-
-        renderTexture->bind();
 
         optional<float> depthClearValue = {};
         if (parameters.staticData.depthRenderbuffer->needsClearing()) depthClearValue = 1.0;
         // Flag the depth buffer as no longer needing to be cleared for the remainder of this pass.
-        parameters.staticData.depthRenderbuffer->shouldClear(false);
+        parameters.staticData.depthRenderbuffer->setShouldClear(false);
 
-        parameters.context.setStencilMode(gl::StencilMode::disabled());
-        parameters.context.clear(Color{ 0.0f, 0.0f, 0.0f, 0.0f }, depthClearValue, {});
+        auto renderPass = parameters.encoder->createRenderPass(
+            "fill extrusion",
+            { *renderTexture, Color{ 0.0f, 0.0f, 0.0f, 0.0f }, depthClearValue, {} });
 
         auto draw = [&](auto& programInstance, const auto& tileBucket, auto&& uniformValues,
-                        const optional<ImagePosition>& patternPositionA, const optional<ImagePosition>& patternPositionB) {
+                        const optional<ImagePosition>& patternPositionA,
+                        const optional<ImagePosition>& patternPositionB, auto&& textureBindings) {
             const auto& paintPropertyBinders = tileBucket.paintPropertyBinders.at(getID());
             paintPropertyBinders.setPatternParameters(patternPositionA, patternPositionB, crossfade);
 
@@ -105,15 +94,17 @@ void RenderFillExtrusionLayer::render(PaintParameters& parameters, RenderSource*
 
             programInstance.draw(
                 parameters.context,
-                gl::Triangles(),
-                parameters.depthModeFor3D(gl::DepthMode::ReadWrite),
-                gl::StencilMode::disabled(),
+                *renderPass,
+                gfx::Triangles(),
+                parameters.depthModeFor3D(gfx::DepthMaskType::ReadWrite),
+                gfx::StencilMode::disabled(),
                 parameters.colorModeForRenderPass(),
-                gl::CullFaceMode::backCCW(),
+                gfx::CullFaceMode::backCCW(),
                 *tileBucket.indexBuffer,
                 tileBucket.triangleSegments,
                 allUniformValues,
                 allAttributeBindings,
+                std::move(textureBindings),
                 getID());
         };
 
@@ -126,16 +117,18 @@ void RenderFillExtrusionLayer::render(PaintParameters& parameters, RenderSource*
                 FillExtrusionBucket& bucket = *bucket_;
 
                 draw(
-                    parameters.programs.getFillExtrusionLayerPrograms().fillExtrusion.get(evaluated),
+                    parameters.programs.getFillExtrusionLayerPrograms().fillExtrusion,
                     bucket,
-                    FillExtrusionUniforms::values(
+                    FillExtrusionProgram::layoutUniformValues(
                         tile.translatedClipMatrix(evaluated.get<FillExtrusionTranslate>(),
                                                   evaluated.get<FillExtrusionTranslateAnchor>(),
                                                   parameters.state),
                         parameters.state,
                         parameters.evaluatedLight
                     ),
-                    {}, {}
+                    {},
+                    {},
+                    FillExtrusionProgram::TextureBindings{}
                 );
             }
         } else {
@@ -145,17 +138,15 @@ void RenderFillExtrusionLayer::render(PaintParameters& parameters, RenderSource*
                     continue;
                 }
                 const auto fillPatternValue = evaluated.get<FillExtrusionPattern>().constantOr(mbgl::Faded<std::basic_string<char> >{"", ""});
-                assert(dynamic_cast<GeometryTile*>(&tile.tile));
-                GeometryTile& geometryTile = static_cast<GeometryTile&>(tile.tile);
+                auto& geometryTile = static_cast<GeometryTile&>(tile.tile);
                 optional<ImagePosition> patternPosA = geometryTile.getPattern(fillPatternValue.from);
                 optional<ImagePosition> patternPosB = geometryTile.getPattern(fillPatternValue.to);
-                parameters.context.bindTexture(*geometryTile.iconAtlasTexture, 0, gl::TextureFilter::Linear);
                 FillExtrusionBucket& bucket = *bucket_;
 
                 draw(
-                    parameters.programs.getFillExtrusionLayerPrograms().fillExtrusionPattern.get(evaluated),
+                    parameters.programs.getFillExtrusionLayerPrograms().fillExtrusionPattern,
                     bucket,
-                    FillExtrusionPatternUniforms::values(
+                    FillExtrusionPatternProgram::layoutUniformValues(
                         tile.translatedClipMatrix(evaluated.get<FillExtrusionTranslate>(),
                                                   evaluated.get<FillExtrusionTranslateAnchor>(),
                                                   parameters.state),
@@ -168,29 +159,30 @@ void RenderFillExtrusionLayer::render(PaintParameters& parameters, RenderSource*
                         parameters.evaluatedLight
                     ),
                     patternPosA,
-                    patternPosB
+                    patternPosB,
+                    FillExtrusionPatternProgram::TextureBindings{
+                        textures::image::Value{ geometryTile.iconAtlasTexture->getResource(), gfx::TextureFilterType::Linear },
+                    }
                 );
             }
         }
 
     } else if (parameters.pass == RenderPass::Translucent) {
-        parameters.context.bindTexture(renderTexture->getTexture());
-
         const auto& size = parameters.staticData.backendSize;
 
         mat4 viewportMat;
         matrix::ortho(viewportMat, 0, size.width, size.height, 0, 0, 1);
 
         const Properties<>::PossiblyEvaluated properties;
-        const ExtrusionTextureProgram::PaintPropertyBinders paintAttributeData{ properties, 0 };
+        const ExtrusionTextureProgram::Binders paintAttributeData{ properties, 0 };
         
         auto& programInstance = parameters.programs.getFillExtrusionLayerPrograms().extrusionTexture;
 
         const auto allUniformValues = programInstance.computeAllUniformValues(
-            ExtrusionTextureProgram::UniformValues{
-                uniforms::u_matrix::Value( viewportMat ), uniforms::u_world::Value( size ),
-                uniforms::u_image::Value( 0 ),
-                uniforms::u_opacity::Value( evaluated.get<FillExtrusionOpacity>() )
+            ExtrusionTextureProgram::LayoutUniformValues{
+                uniforms::matrix::Value( viewportMat ),
+                uniforms::world::Value( size ),
+                uniforms::opacity::Value( evaluated.get<FillExtrusionOpacity>() )
             },
             paintAttributeData,
             properties,
@@ -206,29 +198,21 @@ void RenderFillExtrusionLayer::render(PaintParameters& parameters, RenderSource*
 
         programInstance.draw(
             parameters.context,
-            gl::Triangles(),
-            gl::DepthMode::disabled(),
-            gl::StencilMode::disabled(),
+            *parameters.renderPass,
+            gfx::Triangles(),
+            gfx::DepthMode::disabled(),
+            gfx::StencilMode::disabled(),
             parameters.colorModeForRenderPass(),
-            gl::CullFaceMode::disabled(),
+            gfx::CullFaceMode::disabled(),
             parameters.staticData.quadTriangleIndexBuffer,
             parameters.staticData.extrusionTextureSegments,
             allUniformValues,
             allAttributeBindings,
+            ExtrusionTextureProgram::TextureBindings{
+                textures::image::Value{ renderTexture->getTexture().getResource() },
+            },
             getID());
     }
-}
-style::FillExtrusionPaintProperties::PossiblyEvaluated RenderFillExtrusionLayer::paintProperties() const {
-    return FillExtrusionPaintProperties::PossiblyEvaluated {
-        evaluated.get<style::FillExtrusionOpacity>(),
-        evaluated.get<style::FillExtrusionColor>(),
-        evaluated.get<style::FillExtrusionTranslate>(),
-        evaluated.get<style::FillExtrusionTranslateAnchor>(),
-        evaluated.get<style::FillExtrusionPattern>(),
-        evaluated.get<style::FillExtrusionHeight>(),
-        evaluated.get<style::FillExtrusionBase>(),
-        evaluated.get<style::FillExtrusionVerticalGradient>()
-    };
 }
 
 bool RenderFillExtrusionLayer::queryIntersectsFeature(
@@ -243,7 +227,7 @@ bool RenderFillExtrusionLayer::queryIntersectsFeature(
             queryGeometry,
             evaluated.get<style::FillExtrusionTranslate>(),
             evaluated.get<style::FillExtrusionTranslateAnchor>(),
-            transformState.getAngle(),
+            transformState.getBearing(),
             pixelsToTileUnits);
 
     return util::polygonIntersectsMultiPolygon(translatedQueryGeometry.value_or(queryGeometry), feature.getGeometries());

@@ -7,6 +7,7 @@
 #include <mbgl/tile/tile.hpp>
 #include <mbgl/style/layers/circle_layer_impl.hpp>
 #include <mbgl/geometry/feature_index.hpp>
+#include <mbgl/gfx/cull_face_mode.hpp>
 #include <mbgl/util/math.hpp>
 #include <mbgl/util/intersection_tests.hpp>
 
@@ -21,10 +22,6 @@ RenderCircleLayer::RenderCircleLayer(Immutable<style::CircleLayer::Impl> _impl)
 
 const style::CircleLayer::Impl& RenderCircleLayer::impl() const {
     return static_cast<const style::CircleLayer::Impl&>(*baseImpl);
-}
-
-std::unique_ptr<Bucket> RenderCircleLayer::createBucket(const BucketParameters& parameters, const std::vector<const RenderLayer*>& layers) const {
-    return std::make_unique<CircleBucket>(parameters, layers);
 }
 
 void RenderCircleLayer::transition(const TransitionParameters& parameters) {
@@ -68,23 +65,23 @@ void RenderCircleLayer::render(PaintParameters& parameters, RenderSource*) {
 
         const auto& paintPropertyBinders = bucket.paintPropertyBinders.at(getID());
 
-        auto& programInstance = parameters.programs.getCircleLayerPrograms().circle.get(evaluated);
+        auto& programInstance = parameters.programs.getCircleLayerPrograms().circle;
    
         const auto allUniformValues = programInstance.computeAllUniformValues(
-            CircleProgram::UniformValues {
-                uniforms::u_matrix::Value(
+            CircleProgram::LayoutUniformValues {
+                uniforms::matrix::Value(
                     tile.translatedMatrix(evaluated.get<CircleTranslate>(),
                                           evaluated.get<CircleTranslateAnchor>(),
                                           parameters.state)
                 ),
-                uniforms::u_scale_with_map::Value( scaleWithMap ),
-                uniforms::u_extrude_scale::Value( pitchWithMap
+                uniforms::scale_with_map::Value( scaleWithMap ),
+                uniforms::extrude_scale::Value( pitchWithMap
                     ? std::array<float, 2> {{
                         tile.id.pixelsToTileUnits(1, parameters.state.getZoom()),
                         tile.id.pixelsToTileUnits(1, parameters.state.getZoom()) }}
                     : parameters.pixelsToGLUnits ),
-                uniforms::u_camera_to_center_distance::Value( parameters.state.getCameraToCenterDistance() ),
-                uniforms::u_pitch_with_map::Value( pitchWithMap )
+                uniforms::camera_to_center_distance::Value( parameters.state.getCameraToCenterDistance() ),
+                uniforms::pitch_with_map::Value( pitchWithMap )
             },
             paintPropertyBinders,
             evaluated,
@@ -100,17 +97,19 @@ void RenderCircleLayer::render(PaintParameters& parameters, RenderSource*) {
 
         programInstance.draw(
             parameters.context,
-            gl::Triangles(),
-            parameters.depthModeForSublayer(0, gl::DepthMode::ReadOnly),
+            *parameters.renderPass,
+            gfx::Triangles(),
+            parameters.depthModeForSublayer(0, gfx::DepthMaskType::ReadOnly),
             parameters.mapMode != MapMode::Continuous
                 ? parameters.stencilModeForClipping(tile.clip)
-                : gl::StencilMode::disabled(),
+                : gfx::StencilMode::disabled(),
             parameters.colorModeForRenderPass(),
-            gl::CullFaceMode::disabled(),
+            gfx::CullFaceMode::disabled(),
             *bucket.indexBuffer,
             bucket.segments,
             allUniformValues,
             allAttributeBindings,
+            CircleProgram::TextureBindings{},
             getID()
         );
     }
@@ -146,7 +145,7 @@ bool RenderCircleLayer::queryIntersectsFeature(
             queryGeometry,
             evaluated.get<style::CircleTranslate>(),
             evaluated.get<style::CircleTranslateAnchor>(),
-            transformState.getAngle(),
+            transformState.getBearing(),
             pixelsToTileUnits).value_or(queryGeometry);
 
     // Evaluate functions

@@ -8,13 +8,13 @@
 
 namespace mbgl {
 
-namespace gl {
+namespace gfx {
 class Context;
-} // namespace gl
+} // namespace gfx
 
 class RenderLayer;
 class PatternDependency;
-using PatternLayerMap = std::unordered_map<std::string, PatternDependency>;
+using PatternLayerMap = std::map<std::string, PatternDependency>;
 
 class Bucket {
 public:
@@ -36,7 +36,7 @@ public:
 
     // As long as this bucket has a Prepare render pass, this function is getting called. Typically,
     // this only happens once when the bucket is being rendered for the first time.
-    virtual void upload(gl::Context&) = 0;
+    virtual void upload(gfx::Context&) = 0;
 
     virtual bool hasData() const = 0;
 

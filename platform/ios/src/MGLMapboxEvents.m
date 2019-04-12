@@ -1,6 +1,5 @@
 #import "MGLMapboxEvents.h"
 #import "NSBundle+MGLAdditions.h"
-#import "NSProcessInfo+MGLAdditions.h"
 
 static NSString * const MGLAPIClientUserAgentBase = @"mapbox-maps-ios";
 static NSString * const MGLMapboxAccountType = @"MGLMapboxAccountType";
@@ -32,9 +31,6 @@ static NSString * const MGLVariableGeofence = @"VariableGeofence";
 }
 
 + (nullable instancetype)sharedInstance {
-    if (NSProcessInfo.processInfo.mgl_isInterfaceBuilderDesignablesAgent) {
-        return nil;
-    }
     
     static dispatch_once_t onceToken;
     static MGLMapboxEvents *_sharedInstance;
@@ -189,7 +185,7 @@ static NSString * const MGLVariableGeofence = @"VariableGeofence";
              @"End users must be able to opt out of Mapbox Telemetry in your app, either inside Settings (via Settings.bundle) or inside this app. "
              @"By default, this opt-out control is included as a menu item in the attribution action sheet. "
              @"If you reimplement the opt-out control inside this app, disable this assertion by setting MGLMapboxMetricsEnabledSettingShownInApp to YES in Info.plist."
-             @"\n\nSee https://www.mapbox.com/ios-sdk/#telemetry_opt_out for more information."
+             @"\n\nSee https://docs.mapbox.com/help/how-mapbox-works/attribution/#mapbox-maps-sdk-for-ios for more information."
              @"\n\nAdditionally, by hiding this attribution control you agree to display the required attribution elsewhere in this app."];
         }
     }

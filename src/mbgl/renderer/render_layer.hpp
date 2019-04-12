@@ -62,17 +62,8 @@ public:
             const float,
             const mat4&) const { return false; };
 
-    virtual std::unique_ptr<Bucket> createBucket(const BucketParameters&, const std::vector<const RenderLayer*>&) const = 0;
-    virtual std::unique_ptr<Layout> createLayout(const BucketParameters&,
-                                               const std::vector<const RenderLayer*>&,
-                                               std::unique_ptr<GeometryTileLayer>,
-                                               GlyphDependencies&,
-                                               ImageDependencies&) const {
-        return nullptr;
-    }
-
     using RenderTiles = std::vector<std::reference_wrapper<RenderTile>>;
-    void setRenderTiles(RenderTiles, const TransformState&);
+    virtual void setRenderTiles(RenderTiles, const TransformState&);
 
     // Private implementation
     Immutable<style::Layer::Impl> baseImpl;
@@ -93,9 +84,6 @@ protected:
     // in the console to inform the developer.
     void checkRenderability(const PaintParameters&, uint32_t activeBindingCount);
 
-    // Code specific to RenderTiles sorting / filtering
-    virtual RenderTiles filterRenderTiles(RenderTiles) const;
-    virtual void sortRenderTiles(const TransformState&);
     // For some layers, we want Buckets to cache their corresponding paint properties, so that outdated buckets (and
     // the cached paint properties) can be still in use while the tile is loading new buckets (which will
     // correpond to the current paint properties of the layer).

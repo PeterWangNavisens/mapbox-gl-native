@@ -59,7 +59,7 @@ To add any Objective-C type, constant, or member to the iOS SDK’s public inter
 
 1. Ensure that the symbol is pure Objective-C and does not rely on any language features specific to Objective-C++ or the C11 dialect of C – so no namespaced types or classes named with emoji! 🙃 Most projects that depend on this SDK are either written in pure Objective-C (GNU99 dialect) or Swift, which cannot yet bridge C++ types.
 1. Name the symbol according to [Cocoa naming conventions](https://developer.apple.com/library/prerelease/content/documentation/Cocoa/Conceptual/CodingGuidelines/CodingGuidelines.html#//apple_ref/doc/uid/10000146i). Use the `MGL` class prefix to avoid conflicts with client code. If the symbol has an analogue in MapKit, name the symbol according to MapKit.
-1. Provide full documentation comments. We use [jazzy](https://github.com/realm/jazzy/) to produce the documentation found in the SDK distribution and [on the website for this SDK](https://www.mapbox.com/ios-sdk/api/). We also recognize that many developers rely on Xcode’s Quick Help feature. jazzy supports Markdown formatting; however, Quick Help supports only [HeaderDoc](https://developer.apple.com/legacy/library/documentation/DeveloperTools/Conceptual/HeaderDoc/intro/intro.html) syntax and a subset of Doxygen syntax. For hyperlinks, use HTML syntax, which is recognized by both tools.
+1. Provide full documentation comments. We use [jazzy](https://github.com/realm/jazzy/) to produce the documentation found in the SDK distribution and [on the website for this SDK](https://docs.mapbox.com/ios/api/maps/). We also recognize that many developers rely on Xcode’s Quick Help feature. jazzy supports Markdown formatting; however, Quick Help supports only [HeaderDoc](https://developer.apple.com/legacy/library/documentation/DeveloperTools/Conceptual/HeaderDoc/intro/intro.html) syntax and a subset of Doxygen syntax. For hyperlinks, use HTML syntax, which is recognized by both tools.
 
 ### Making a type or constant public
 
@@ -125,17 +125,18 @@ find platform/{darwin,ios}/resources platform/macos/sdk -path '*/MYLANG.lproj/*.
 
 To add an example code listing to the documentation for a class or class member:
 
-1. Add a test method named in the form `testMGLClass` or `testMGLClass$method`
-   to [MGLDocumentationExampleTests](test/MGLDocumentationExampleTests.swift).
-   Wrap the code you’d like to appear in the documentation within
-   `//#-example-code` and `//#-end-example-code` comments.
-1. If the header doesn’t already have an example code listing, add the path to
-   the header to platform/darwin/scripts/update-examples.list.
-1. Insert the code listings into the headers:
-
-```bash
-make darwin-update-examples
-```
+ 1. Add a test case named in the form `testMGLClass` or `testMGLClass$method` to [MGLDocumentationExamplesTests](test/MGLDocumentationExampleTests.swift).
+ 2. Wrap the code you'd like to appear in the documentation within the
+    following comment blocks:
+    ```
+    //#-example-code
+    ...
+    //#-end-example-code
+    ```
+ 3. Insert an empty Swift code block inside the header file where you'd like the
+    example code to be inserted.
+ 4. Run `make darwin-update-examples` to extract example code from the test
+    method below and insert it into the header.
 
 [SourceKitten](https://github.com/jpsim/SourceKitten/) is required and will be installed automatically using Homebrew.
 

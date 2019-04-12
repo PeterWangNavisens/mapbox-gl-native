@@ -2,6 +2,7 @@
 #include <mbgl/tile/geometry_tile_data.hpp>
 #include <mbgl/tile/geometry_tile.hpp>
 #include <mbgl/layermanager/layer_manager.hpp>
+#include <mbgl/layout/layout.hpp>
 #include <mbgl/layout/symbol_layout.hpp>
 #include <mbgl/layout/pattern_layout.hpp>
 #include <mbgl/renderer/bucket_parameters.hpp>
@@ -20,6 +21,7 @@
 #include <mbgl/util/stopwatch.hpp>
 
 #include <unordered_set>
+#include <utility>
 
 namespace mbgl {
 
@@ -28,7 +30,7 @@ using namespace style;
 GeometryTileWorker::GeometryTileWorker(ActorRef<GeometryTileWorker> self_,
                                        ActorRef<GeometryTile> parent_,
                                        OverscaledTileID id_,
-                                       const std::string& sourceID_,
+                                       std::string sourceID_,
                                        const std::atomic<bool>& obsolete_,
                                        const MapMode mode_,
                                        const float pixelRatio_,
@@ -36,7 +38,7 @@ GeometryTileWorker::GeometryTileWorker(ActorRef<GeometryTileWorker> self_,
     : self(std::move(self_)),
       parent(std::move(parent_)),
       id(std::move(id_)),
-      sourceID(sourceID_),
+      sourceID(std::move(sourceID_)),
       obsolete(obsolete_),
       mode(mode_),
       pixelRatio(pixelRatio_),
@@ -277,12 +279,13 @@ void GeometryTileWorker::onGlyphsAvailable(GlyphMap newGlyphMap) {
     symbolDependenciesChanged();
 }
 
-void GeometryTileWorker::onImagesAvailable(ImageMap newIconMap, ImageMap newPatternMap, uint64_t imageCorrelationID_) {
+void GeometryTileWorker::onImagesAvailable(ImageMap newIconMap, ImageMap newPatternMap, ImageVersionMap newVersionMap, uint64_t imageCorrelationID_) {
     if (imageCorrelationID != imageCorrelationID_) {
         return; // Ignore outdated image request replies.
     }
     imageMap = std::move(newIconMap);
     patternMap = std::move(newPatternMap);
+    versionMap = std::move(newVersionMap);
     pendingImageDependencies.clear();
     symbolDependenciesChanged();
 }
@@ -340,7 +343,6 @@ void GeometryTileWorker::parse() {
     layouts.clear();
 
     featureIndex = std::make_unique<FeatureIndex>(*data ? (*data)->clone() : nullptr);
-    BucketParameters parameters { id, mode, pixelRatio };
 
     GlyphDependencies glyphDependencies;
     ImageDependencies imageDependencies;
@@ -359,6 +361,7 @@ void GeometryTileWorker::parse() {
         }
 
         const RenderLayer& leader = *group.at(0);
+        BucketParameters parameters { id, mode, pixelRatio, leader.baseImpl->getTypeInfo() };
 
         auto geometryLayer = (*data)->getLayer(leader.baseImpl->sourceLayer);
         if (!geometryLayer) {
@@ -377,7 +380,7 @@ void GeometryTileWorker::parse() {
         // and either immediately create a bucket if no images/glyphs are used, or the Layout is stored until
         // the images/glyphs are available to add the features to the buckets.
         if (leader.baseImpl->getTypeInfo()->layout == LayerTypeInfo::Layout::Required) {
-            auto layout = leader.createLayout(parameters, group, std::move(geometryLayer), glyphDependencies, imageDependencies);
+            auto layout = LayerManager::get()->createLayout({parameters, glyphDependencies, imageDependencies}, std::move(geometryLayer), group);
             if (layout->hasDependencies()) {
                 layouts.push_back(std::move(layout));
             } else {
@@ -386,7 +389,7 @@ void GeometryTileWorker::parse() {
         } else {
             const Filter& filter = leader.baseImpl->filter;
             const std::string& sourceLayerID = leader.baseImpl->sourceLayer;
-            std::shared_ptr<Bucket> bucket = leader.createBucket(parameters, group);
+            std::shared_ptr<Bucket> bucket = LayerManager::get()->createBucket(parameters, group);
 
             for (std::size_t i = 0; !obsolete && i < geometryLayer->featureCount(); i++) {
                 std::unique_ptr<GeometryTileFeature> feature = geometryLayer->getFeature(i);
@@ -440,7 +443,7 @@ void GeometryTileWorker::finalizeLayout() {
     
     MBGL_TIMING_START(watch)
     optional<AlphaImage> glyphAtlasImage;
-    ImageAtlas iconAtlas = makeImageAtlas(imageMap, patternMap);
+    ImageAtlas iconAtlas = makeImageAtlas(imageMap, patternMap, versionMap);
     if (!layouts.empty()) {
         GlyphAtlas glyphAtlas = makeGlyphAtlas(glyphMap);
         glyphAtlasImage = std::move(glyphAtlas.image);

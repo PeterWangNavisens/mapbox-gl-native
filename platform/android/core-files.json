@@ -36,7 +36,6 @@
         "platform/android/src/gson/json_primitive.cpp",
         "platform/android/src/image.cpp",
         "platform/android/src/java/util.cpp",
-        "platform/android/src/math/math.cpp",
         "platform/android/src/java_types.cpp",
         "platform/android/src/jni.cpp",
         "platform/android/src/logger.cpp",
@@ -82,6 +81,7 @@
         "platform/android/src/style/value.cpp",
         "platform/android/src/text/collator.cpp",
         "platform/android/src/text/local_glyph_rasterizer.cpp",
+        "platform/android/src/gl_functions.cpp",
         "platform/android/src/thread.cpp",
         "platform/android/src/timer.cpp",
         "platform/android/src/unaccent.cpp",
@@ -97,7 +97,6 @@
         "platform/linux/src/headless_backend_egl.cpp"
     ],
     "public_headers": {
-        "mbgl/gl/gl_impl.hpp": "platform/android/include/mbgl/gl/gl_impl.hpp",
         "jni/string_conversion.hpp": "platform/default/include/jni/string_conversion.hpp",
         "mbgl/gl/headless_backend.hpp": "platform/default/include/mbgl/gl/headless_backend.hpp",
         "mbgl/gl/headless_frontend.hpp": "platform/default/include/mbgl/gl/headless_frontend.hpp",
@@ -142,7 +141,6 @@
         "gson/json_object.hpp": "platform/android/src/gson/json_object.hpp",
         "gson/json_primitive.hpp": "platform/android/src/gson/json_primitive.hpp",
         "java/util.hpp": "platform/android/src/java/util.hpp",
-        "math/math.hpp": "platform/android/src/math/math.hpp",
         "java_types.hpp": "platform/android/src/java_types.hpp",
         "jni.hpp": "platform/android/src/jni.hpp",
         "logger.hpp": "platform/android/src/logger.hpp",

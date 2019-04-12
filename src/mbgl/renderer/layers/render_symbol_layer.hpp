@@ -57,7 +57,7 @@ class BucketParameters;
 class SymbolLayout;
 class GeometryTileLayer;
 
-class RenderSymbolLayer: public RenderLayer, public RenderLayerSymbolInterface {
+class RenderSymbolLayer final: public RenderLayer, public RenderLayerSymbolInterface {
 public:
     RenderSymbolLayer(Immutable<style::SymbolLayer::Impl>);
     ~RenderSymbolLayer() final = default;
@@ -67,16 +67,10 @@ public:
     bool hasTransition() const override;
     bool hasCrossfade() const override;
     void render(PaintParameters&, RenderSource*) override;
+    void setRenderTiles(RenderTiles, const TransformState&) override;
 
     static style::IconPaintProperties::PossiblyEvaluated iconPaintProperties(const style::SymbolPaintProperties::PossiblyEvaluated&);
     static style::TextPaintProperties::PossiblyEvaluated textPaintProperties(const style::SymbolPaintProperties::PossiblyEvaluated&);
-
-    std::unique_ptr<Bucket> createBucket(const BucketParameters&, const std::vector<const RenderLayer*>&) const override;
-    std::unique_ptr<Layout> createLayout(const BucketParameters&,
-                                               const std::vector<const RenderLayer*>&,
-                                               std::unique_ptr<GeometryTileLayer>,
-                                               GlyphDependencies&,
-                                               ImageDependencies&) const override;
 
     // RenderLayerSymbolInterface overrides
     const RenderLayerSymbolInterface* getSymbolInterface() const final;
@@ -98,8 +92,6 @@ protected:
                                                           const style::SymbolLayoutProperties::PossiblyEvaluated&);
     static style::SymbolPropertyValues textPropertyValues(const style::SymbolPaintProperties::PossiblyEvaluated&,
                                                           const style::SymbolLayoutProperties::PossiblyEvaluated&);
-    RenderTiles filterRenderTiles(RenderTiles) const final;
-    void sortRenderTiles(const TransformState&) final;
     void updateBucketPaintProperties(Bucket*) const final;
 };
 

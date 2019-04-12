@@ -1,6 +1,8 @@
 #import "MGLAccountManager_Private.h"
 #import "NSBundle+MGLAdditions.h"
+#if TARGET_OS_OSX
 #import "NSProcessInfo+MGLAdditions.h"
+#endif
 
 #if TARGET_OS_IPHONE || TARGET_OS_SIMULATOR
 #import "MGLMapboxEvents.h"
@@ -8,12 +10,14 @@
 @interface MGLAccountManager ()
 
 @property (atomic) NSString *accessToken;
+@property (nonatomic) NSURL *apiBaseURL;
 
 @end
 #else
 @interface MGLAccountManager ()
 
 @property (atomic) NSString *accessToken;
+@property (nonatomic) NSURL *apiBaseURL;
 
 @end
 #endif
@@ -28,12 +32,22 @@
     if (accessToken.length) {
         self.accessToken = accessToken;
     }
+    
+    NSString *apiBaseURL = [[NSBundle mainBundle] objectForInfoDictionaryKey:@"MGLMapboxAPIBaseURL"];
+    
+    // If apiBaseURL is not a valid URL, [NSURL URLWithString:] will be `nil`.
+    if (apiBaseURL.length && [NSURL URLWithString:apiBaseURL]) {
+        [self setAPIBaseURL:[NSURL URLWithString:apiBaseURL]];
+    }
 }
 
 + (instancetype)sharedManager {
+#if TARGET_OS_OSX
     if (NSProcessInfo.processInfo.mgl_isInterfaceBuilderDesignablesAgent) {
         return nil;
     }
+#endif
+    
     static dispatch_once_t onceToken;
     static MGLAccountManager *_sharedManager;
     void (^setupBlock)(void) = ^{
@@ -69,6 +83,14 @@
 
 + (NSString *)accessToken {
     return [MGLAccountManager sharedManager].accessToken;
+}
+
++ (void)setAPIBaseURL:(NSURL *)apiBaseURL {
+    [MGLAccountManager sharedManager].apiBaseURL = apiBaseURL;
+}
+
++ (NSURL *)apiBaseURL {
+    return [MGLAccountManager sharedManager].apiBaseURL;
 }
 
 @end
